@@ -11,33 +11,28 @@ class Config {
     }
 
     /**
-     * Load API key from localStorage
+     * Load API key from memory (localStorage not available)
      */
     loadApiKey() {
-        try {
-            const stored = localStorage.getItem(this.STORAGE_KEY);
-            if (stored) {
-                this.apiKey = stored;
-                this.updateStatus(true);
-            } else {
-                this.updateStatus(false);
-            }
-        } catch (error) {
-            console.error('Error loading API key:', error);
+        // API key will be stored in memory only
+        if (this.apiKey) {
+            this.updateStatus(true);
+        } else {
             this.updateStatus(false);
         }
     }
-
     /**
      * Save API key to localStorage
      */
+/**
+ * Save API key to memory
+ */
     saveApiKey(key) {
         try {
             if (!key || key.trim().length === 0) {
                 throw new Error('API key cannot be empty');
             }
             
-            localStorage.setItem(this.STORAGE_KEY, key.trim());
             this.apiKey = key.trim();
             this.updateStatus(true);
             return true;
@@ -65,15 +60,9 @@ class Config {
      * Clear API key
      */
     clearApiKey() {
-        try {
-            localStorage.removeItem(this.STORAGE_KEY);
-            this.apiKey = null;
-            this.updateStatus(false);
-        } catch (error) {
-            console.error('Error clearing API key:', error);
-        }
+        this.apiKey = null;
+        this.updateStatus(false);
     }
-
     /**
      * Update status indicator in UI
      */
@@ -154,4 +143,5 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
 });
