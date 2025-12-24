@@ -120,10 +120,9 @@ Notes d'utilisation
      */
     async loadDocuments() {
         console.log('Chargement des documents depuis le référentiel...');
-        
         try {
             // Try to fetch document list from GitHub API
-            const response = await fetch('https://api.github.com/repos/ulirdz/egis-test.ia/contents/documents');
+            const response = await fetch('https://api.github.com/repos/ulirdz/Request-Erwan/contents/documents');
             
             if (response.ok) {
                 const files = await response.json();
@@ -147,12 +146,52 @@ Notes d'utilisation
             console.error('❌ Erreur lors du chargement des documents:', error);
             this.useFallbackDocuments();
         }
+        /**
+         * Extract text from PDF using pdf.js
+         */
+        async extractTextFromPDF(pdfPath) {
+            try {
+                const pdf = await pdfjsLib.getDocument(pdfPath).promise;
+                let fullText = '';
+                
+                // Extract text from all pages
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    fullText += pageText + '\n\n';
+                }
+                
+                return fullText.trim();
+            } catch (error) {
+                console.error(`Error extracting text from ${pdfPath}:`, error);
+                throw error;
+            }
+        }
         
         // Update system prompt with document information
         this.systemPrompt = this.getSystemPrompt();
         console.log('System prompt mis à jour avec', this.documents.length, 'documents');
-    }
-    
+        }
+        async extractTextFromPDF(pdfPath) {
+        try {
+            const pdf = await pdfjsLib.getDocument(pdfPath).promise;
+            let fullText = '';
+            
+            // Extract text from all pages
+            for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                const page = await pdf.getPage(pageNum);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                fullText += pageText + '\n\n';
+            }
+            
+            return fullText.trim();
+        } catch (error) {
+            console.error(`Error extracting text from ${pdfPath}:`, error);
+            throw error;
+        }
+        }
     /**
      * Use fallback document list if GitHub API fails
      */
@@ -174,9 +213,28 @@ Notes d'utilisation
             { name: 'RPT_SafetyMeasures_Symvolou_v1.2.pdf', path: 'documents/RPT_SafetyMeasures_Symvolou_v1.2.pdf' },
             { name: 'RPT_SafetyMeasures_T8-Dematiou_v1.2.pdf', path: 'documents/RPT_SafetyMeasures_T8-Dematiou_v1.2.pdf' }
         ];
-        console.log(`📋 Utilisation de la liste de secours : ${this.documents.length} documents`);
-    }
-
+            this.documents = [];
+            
+            // Show loading message
+            this.addMessage('bot', 'Loading documents from repository... This may take a moment.');
+            
+            for (const doc of documentList) {
+                try {
+                    console.log(`Loading: ${doc.name}`);
+                    const text = await this.extractTextFromPDF(doc.path);
+                    this.documents.push({
+                        name: doc.name,
+                        content: text
+                    });
+                    console.log(`✓ Loaded: ${doc.name} (${text.length} characters)`);
+                } catch (error) {
+                    console.error(`✗ Failed to load ${doc.name}:`, error);
+                }
+            }
+            
+            console.log(`Successfully loaded ${this.documents.length} documents`);
+            this.addMessage('bot', `Successfully loaded ${this.documents.length} documents. How can I help you analyze them?`);
+        }
     /**
      * Extract site name from document filename
      */
@@ -318,11 +376,19 @@ Notes d'utilisation
                 content: userMessage
             });
             
-            // Prepare messages for API
+            // Prepare messages for API+document context
+            let documentContext = '\n\n## Available Documents:\n';
+            this.documents.forEach(doc => {
+                // Limit each document to first 3000 characters to avoid token limits
+                const excerpt = doc.content.substring(0, 3000);
+                documentContext += `\n### ${doc.name}\n${excerpt}...\n`;
+            });
+            
+            // Prepare messages for API with document context
             const messages = [
                 {
                     role: 'system',
-                    content: this.systemPrompt
+                    content: this.systemPrompt + documentContext
                 },
                 ...this.conversationHistory
             ];
